@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:fllama/fllama.dart';
+import 'package:llama_cpp_dart/llama_cpp_dart.dart'; // 换成新包名
 import 'dart:async';
 
 void main() {
@@ -27,39 +27,37 @@ class TranslationPage extends StatefulWidget {
 
 class _TranslationPageState extends State<TranslationPage> {
   final TextEditingController _inputController = TextEditingController();
-  final Fllama _fllama = Fllama();
+  
+  // 声明为可空的 Llama 实例
+  Llama? _llama;
   
   String _modelPath = '';
   String _translatedText = '';
   bool _isTranslating = false;
   StreamSubscription? _subscription;
 
-  // 选择手机里的 GGUF 模型
   Future<void> _pickModel() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       dialogTitle: '选择 GGUF 模型',
-      type: FileType.any, // Android 上限制后缀有时会失效，所以用 any
+      type: FileType.any,
     );
 
     if (result != null && result.files.single.path != null) {
       setState(() {
         _modelPath = result.files.single.path!;
       });
-      // 初始化 C++ 模型引擎
-      _fllama.init(
-        modelPath: _modelPath,
-        contextSize: 2048, // 手机内存有限，上下文不宜过大
-        threads: 4,        // 调用 4 个 CPU 核心
-      );
+      
+      // 初始化真正的 llama_cpp_dart 引擎
+      _llama = Llama(modelPath: _modelPath);
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('模型加载成功！')),
       );
     }
   }
 
-  // 执行翻译
   void _startTranslation() {
-    if (_modelPath.isEmpty) {
+    if (_llama == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请先选择模型！')),
       );
@@ -74,8 +72,8 @@ class _TranslationPageState extends State<TranslationPage> {
 
     String prompt = "Translate the following text into Chinese, only output the translated content:\n\n${_inputController.text}";
 
-    // 监听 C++ 引擎的流式输出
-    _subscription = _fllama.generate(prompt).listen((token) {
+    // 调用真实的 prompt 流式输出方法
+    _subscription = _llama?.prompt(prompt).listen((token) {
       setState(() {
         _translatedText += token;
       });
@@ -98,6 +96,7 @@ class _TranslationPageState extends State<TranslationPage> {
     });
   }
 
+  // 下方的 build(BuildContext context) 界面构建代码保持不变...
   @override
   Widget build(BuildContext context) {
     return Scaffold(
