@@ -1,0 +1,17 @@
+name: ai_translator
+description: AI Translator powered by fllama
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 跨平台文件选择器，用于在手机里选择 GGUF 模型
+  file_picker: ^8.0.0
+  # 核心 C++ 引擎桥接库
+  fllama: any
+
+flutter:
+  uses-material-design: true
