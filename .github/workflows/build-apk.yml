@@ -42,7 +42,7 @@ jobs:
         flutter pub get
 
     - name: 自动同意 Android SDK/NDK 许可证
-      run: yes | sdkmanager --licenses
+      run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
     - name: 执行终极编译 (C++ 交叉编译 + 打包 APK)
       run: |
