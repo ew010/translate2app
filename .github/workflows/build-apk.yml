@@ -31,10 +31,17 @@ jobs:
         cp my_pubspec.yaml app_project/pubspec.yaml
         cp my_main.dart app_project/lib/main.dart
 
+    - name: 🚀注入安卓系统存储权限 (防闪退核心)
+      run: |
+        cd app_project
+        # 暴力注入读取外部存储的权限，防止 C++ 底层报空指针错误
+        perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
+        # 开启 Android 10+ 兼容模式
+        perl -pi -e 's/<application/<application android:requestLegacyExternalStorage="true"/' android/app/src/main/AndroidManifest.xml
+
     - name: 修复 Android NDK 与 API 26 最低版本配置
       run: |
         cd app_project
-        # 针对新引擎，最低要求安卓 8.0 (API 26)
         if [ -f "android/app/build.gradle.kts" ]; then
           sed -i 's/flutter.minSdkVersion/26/g' android/app/build.gradle.kts
         elif [ -f "android/app/build.gradle" ]; then
