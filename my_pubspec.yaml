@@ -1,5 +1,5 @@
 name: ai_translator
-description: AI Translator powered by llama_cpp
+description: AI Translator powered by llama
 publish_to: 'none'
 version: 1.0.0+1
 environment:
@@ -9,7 +9,8 @@ dependencies:
   flutter:
     sdk: flutter
   file_picker: ^8.0.0
-  llama_cpp_dart: any # 换成这个真正的 C++ 桥接插件
+  # 替换为专门针对 Android 优化的 GPU 加速版
+  llama_flutter_android: any
 
 flutter:
   uses-material-design: true
