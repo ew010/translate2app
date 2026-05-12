@@ -34,8 +34,12 @@ jobs:
     - name: 修复 Android NDK 与 C++ 编译所需的最低版本配置
       run: |
         cd app_project
-        # 底层 C++ 引擎要求安卓系统最低版本为 24
-        sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
+        # 智能适配 Flutter 最新版的 Kotlin DSL (.kts) 和老版本 (.gradle)
+        if [ -f "android/app/build.gradle.kts" ]; then
+          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle.kts
+        elif [ -f "android/app/build.gradle" ]; then
+          sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
+        fi
         flutter pub get
 
     - name: 执行终极编译 (C++ 交叉编译 + 打包 APK)
