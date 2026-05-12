@@ -1,0 +1,50 @@
+name: Build Native Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 配置 Java 环境
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: 配置 Flutter 环境
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable'
+
+    - name: 在云端动态创建 Flutter 原生工程
+      run: |
+        flutter create app_project --platforms android
+        
+    - name: 注入我们的核心代码
+      run: |
+        cp my_pubspec.yaml app_project/pubspec.yaml
+        cp my_main.dart app_project/lib/main.dart
+
+    - name: 修复 Android NDK 与 C++ 编译所需的最低版本配置
+      run: |
+        cd app_project
+        # 底层 C++ 引擎要求安卓系统最低版本为 24
+        sed -i 's/flutter.minSdkVersion/24/g' android/app/build.gradle
+        flutter pub get
+
+    - name: 执行终极编译 (C++ 交叉编译 + 打包 APK)
+      run: |
+        cd app_project
+        flutter build apk --release
+
+    - name: 提取并上传 APK 安装包
+      uses: actions/upload-artifact@v4
+      with:
+        name: AITranslator-Android-APK
+        path: app_project/build/app/outputs/flutter-apk/app-release.apk
