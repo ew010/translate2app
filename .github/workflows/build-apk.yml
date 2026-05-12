@@ -31,11 +31,11 @@ jobs:
         cp my_pubspec.yaml app_project/pubspec.yaml
         cp my_main.dart app_project/lib/main.dart
 
-    - name: 🚀注入安卓系统存储权限 (防闪退核心)
+    - name: 🚀注入安卓系统必需权限 (防闪退核心)
       run: |
         cd app_project
-        # 暴力注入读取外部存储的权限，防止 C++ 底层报空指针错误
-        perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
+        # 暴力注入存储权限以及极其重要的前台服务权限 (FOREGROUND_SERVICE)
+        perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
         # 开启 Android 10+ 兼容模式
         perl -pi -e 's/<application/<application android:requestLegacyExternalStorage="true"/' android/app/src/main/AndroidManifest.xml
 
