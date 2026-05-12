@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'dart:async';
+import 'dart:io';
 
 void main() {
   runApp(const TranslatorApp());
@@ -27,55 +28,58 @@ class TranslationPage extends StatefulWidget {
 
 class _TranslationPageState extends State<TranslationPage> {
   final TextEditingController _inputController = TextEditingController();
-  
-  // 使用全新的 Android 专属控制器
   final LlamaController _llamaController = LlamaController();
   
   String _modelPath = '';
   String _translatedText = '';
   bool _isTranslating = false;
   StreamSubscription? _subscription;
+  String _debugInfo = '等待加载...';
 
-  Future<void> _pickModel() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      dialogTitle: '选择 GGUF 模型',
-      type: FileType.any,
-    );
+  // 核心：直接读取公共 Download 文件夹的硬核方法
+  Future<void> _loadFromDownloadFolder() async {
+    // 安卓标准的公共下载目录路径
+    String hardcodedPath = '/storage/emulated/0/Download/model.gguf';
+    File file = File(hardcodedPath);
 
-    if (result != null && result.files.single.path != null) {
+    if (!file.existsSync()) {
       setState(() {
-        _modelPath = result.files.single.path!;
+        _debugInfo = '❌ 找不到文件！请确保模型命名为 model.gguf 且放在 Download 文件夹的最外层。';
       });
-      
-      try {
-        // 加载模型，配置极简
-        await _llamaController.loadModel(
-          modelPath: _modelPath,
-          threads: 4,
-          contextSize: 2048,
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('模型加载成功！支持 GPU 加速 ⚡️')),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('模型加载失败: $e')),
-          );
-        }
-      }
+      return;
+    }
+
+    // 检测文件大小
+    int fileSize = file.lengthSync();
+    double sizeInMB = fileSize / (1024 * 1024);
+    setState(() {
+      _modelPath = hardcodedPath;
+      _debugInfo = '✅ 找到文件: ${sizeInMB.toStringAsFixed(1)} MB\n正在注入 C++ 引擎...';
+    });
+
+    if (sizeInMB == 0) {
+      setState(() => _debugInfo += '\n❌ 文件大小为 0，文件已损坏！');
+      return;
+    }
+
+    try {
+      await _llamaController.loadModel(
+        modelPath: _modelPath,
+        threads: 4,
+        contextSize: 1024, // 进一步调小上下文，防止内存溢出
+      );
+      setState(() {
+        _debugInfo = '🎉 模型加载成功！引擎已就绪 (GPU加速已开启)';
+      });
+    } catch (e) {
+      setState(() {
+        _debugInfo = '❌ C++ 引擎加载崩溃: $e';
+      });
     }
   }
 
   void _startTranslation() {
-    if (_modelPath.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择模型！')),
-      );
-      return;
-    }
+    if (_modelPath.isEmpty) return;
     if (_inputController.text.isEmpty) return;
 
     setState(() {
@@ -85,21 +89,16 @@ class _TranslationPageState extends State<TranslationPage> {
 
     String prompt = "Translate the following text into Chinese, only output the translated content:\n\n${_inputController.text}";
 
-    // 调用全新引擎的流式输出
     _subscription = _llamaController.generate(
       prompt: prompt,
-      maxTokens: 1024,
-      temperature: 0.1, // 翻译任务需要较低的温度以保持准确性
+      maxTokens: 512,
+      temperature: 0.1,
     ).listen(
       (token) {
-        setState(() {
-          _translatedText += token;
-        });
+        setState(() => _translatedText += token);
       },
       onDone: () {
-        setState(() {
-          _isTranslating = false;
-        });
+        setState(() => _isTranslating = false);
       },
       onError: (error) {
         setState(() {
@@ -111,7 +110,6 @@ class _TranslationPageState extends State<TranslationPage> {
   }
 
   void _stopTranslation() {
-    // 这个新引擎完美支持中途强制停止
     _llamaController.stop();
     _subscription?.cancel();
     setState(() {
@@ -122,21 +120,30 @@ class _TranslationPageState extends State<TranslationPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AI 原生翻译器 (离线版)')),
+      appBar: AppBar(title: const Text('AI 原生翻译器 (硬核排错版)')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 新增的硬核加载按钮
             ElevatedButton.icon(
-              onPressed: _isTranslating ? null : _pickModel,
-              icon: const Icon(Icons.folder),
-              label: Text(_modelPath.isEmpty ? '1. 选择 GGUF 模型' : '模型已就绪 (点击重新选择)'),
+              onPressed: _isTranslating ? null : _loadFromDownloadFolder,
+              icon: const Icon(Icons.download),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+              label: const Text('1. 从 Download 文件夹强行加载 model.gguf'),
+            ),
+            const SizedBox(height: 8),
+            // 状态显示面板
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+              child: Text(_debugInfo, style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace')),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _inputController,
-              maxLines: 4,
+              maxLines: 3,
               decoration: const InputDecoration(
                 hintText: '2. 输入需要翻译的英文...',
                 border: OutlineInputBorder(),
