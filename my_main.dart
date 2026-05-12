@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:llama_cpp_dart/llama_cpp_dart.dart'; // 换成新包名
+import 'package:llama_flutter_android/llama_flutter_android.dart';
 import 'dart:async';
 
 void main() {
@@ -28,8 +28,8 @@ class TranslationPage extends StatefulWidget {
 class _TranslationPageState extends State<TranslationPage> {
   final TextEditingController _inputController = TextEditingController();
   
-  // 声明为可空的 Llama 实例
-  Llama? _llama;
+  // 使用全新的 Android 专属控制器
+  final LlamaController _llamaController = LlamaController();
   
   String _modelPath = '';
   String _translatedText = '';
@@ -47,17 +47,30 @@ class _TranslationPageState extends State<TranslationPage> {
         _modelPath = result.files.single.path!;
       });
       
-      // 初始化真正的 llama_cpp_dart 引擎
-      _llama = Llama(modelPath: _modelPath);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('模型加载成功！')),
-      );
+      try {
+        // 加载模型，配置极简
+        await _llamaController.loadModel(
+          modelPath: _modelPath,
+          threads: 4,
+          contextSize: 2048,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('模型加载成功！支持 GPU 加速 ⚡️')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('模型加载失败: $e')),
+          );
+        }
+      }
     }
   }
 
   void _startTranslation() {
-    if (_llama == null) {
+    if (_modelPath.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('请先选择模型！')),
       );
@@ -72,31 +85,40 @@ class _TranslationPageState extends State<TranslationPage> {
 
     String prompt = "Translate the following text into Chinese, only output the translated content:\n\n${_inputController.text}";
 
-    // 调用真实的 prompt 流式输出方法
-    _subscription = _llama?.prompt(prompt).listen((token) {
-      setState(() {
-        _translatedText += token;
-      });
-    }, onDone: () {
-      setState(() {
-        _isTranslating = false;
-      });
-    }, onError: (error) {
-      setState(() {
-        _isTranslating = false;
-        _translatedText += "\n[翻译出错: $error]";
-      });
-    });
+    // 调用全新引擎的流式输出
+    _subscription = _llamaController.generate(
+      prompt: prompt,
+      maxTokens: 1024,
+      temperature: 0.1, // 翻译任务需要较低的温度以保持准确性
+    ).listen(
+      (token) {
+        setState(() {
+          _translatedText += token;
+        });
+      },
+      onDone: () {
+        setState(() {
+          _isTranslating = false;
+        });
+      },
+      onError: (error) {
+        setState(() {
+          _isTranslating = false;
+          _translatedText += "\n[翻译出错: $error]";
+        });
+      }
+    );
   }
 
   void _stopTranslation() {
+    // 这个新引擎完美支持中途强制停止
+    _llamaController.stop();
     _subscription?.cancel();
     setState(() {
       _isTranslating = false;
     });
   }
 
-  // 下方的 build(BuildContext context) 界面构建代码保持不变...
   @override
   Widget build(BuildContext context) {
     return Scaffold(
