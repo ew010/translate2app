@@ -9,8 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   file_picker: ^8.0.0
-  # 替换为专门针对 Android 优化的 GPU 加速版
   llama_flutter_android: any
+  # 新增：安卓动态权限请求神器
+  permission_handler: any
 
 flutter:
   uses-material-design: true
