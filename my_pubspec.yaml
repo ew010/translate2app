@@ -9,9 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   file_picker: ^8.0.0
-  llama_flutter_android: any
-  # 新增：安卓动态权限请求神器
   permission_handler: any
+  # 关键：换回这个最老实、绝不挑 GPU 的纯 CPU 插件
+  llama_cpp_dart: any 
 
 flutter:
   uses-material-design: true
