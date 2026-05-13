@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
+import 'package:permission_handler/permission_handler.dart'; // 引入权限包
 import 'dart:async';
 import 'dart:io';
 
@@ -33,10 +34,32 @@ class _TranslationPageState extends State<TranslationPage> {
   String _translatedText = '';
   bool _isTranslating = false;
   StreamSubscription? _subscription;
-  String _debugInfo = '等待加载...';
+  String _debugInfo = '等待加载... (请确保模型已重命名为 model.gguf 并放在 Download 文件夹最外层)';
+
+  // 申请高级存储权限的方法
+  Future<bool> _requestPermissions() async {
+    // 针对 Android 11+ 的所有文件管理权限
+    if (await Permission.manageExternalStorage.request().isGranted) {
+      return true;
+    }
+    // 针对老版本安卓的普通存储权限
+    if (await Permission.storage.request().isGranted) {
+      return true;
+    }
+    return false;
+  }
 
   // 核心：沙盒转移大法
   Future<void> _loadFromDownloadFolder() async {
+    // 1. 第一步：先向系统要权限！
+    setState(() => _debugInfo = '⏳ 正在请求存储权限...');
+    bool hasPermission = await _requestPermissions();
+    if (!hasPermission) {
+      setState(() => _debugInfo = '❌ 权限被拒绝 (errno 13)！请去系统设置中手动开启“所有文件访问”权限。');
+      return;
+    }
+
+    // 2. 权限拿到后，再开始读文件
     String hardcodedPath = '/storage/emulated/0/Download/model.gguf';
     File sourceFile = File(hardcodedPath);
 
@@ -49,23 +72,21 @@ class _TranslationPageState extends State<TranslationPage> {
     double sizeInMB = fileSize / (1024 * 1024);
 
     setState(() {
-      _debugInfo = '✅ 发现外部文件: ${sizeInMB.toStringAsFixed(1)} MB\n⏳ 正在将大文件转移至底层 C++ 专属安全沙盒...\n(由于文件较大，此过程可能需要 5-15 秒，请耐心等待手机复制...)';
+      _debugInfo = '✅ 发现文件: ${sizeInMB.toStringAsFixed(1)} MB\n⏳ 正在转移至沙盒 (防 Error 13)...\n(可能需要 5-10 秒，请耐心等待)';
     });
 
-    // 稍微延迟让 UI 渲染出来
     await Future.delayed(const Duration(milliseconds: 500));
 
     String safePath = '${Directory.systemTemp.path}/model_safe.gguf';
     File safeFile = File(safePath);
 
     try {
-      // 如果沙盒里没有，或者大小不一致，就执行复制
       if (!safeFile.existsSync() || safeFile.lengthSync() != fileSize) {
-        await sourceFile.copy(safePath);
+        await sourceFile.copy(safePath); // 现在有权限了，不会再报 errno 13
       }
       setState(() => _debugInfo += '\n✅ 沙盒转移完毕！安全路径: $safePath\n🚀 正在注入 C++ 引擎...');
     } catch(e) {
-      setState(() => _debugInfo += '\n❌ 复制到沙盒失败: $e');
+      setState(() => _debugInfo += '\n❌ 复制失败: $e');
       return;
     }
 
@@ -73,7 +94,7 @@ class _TranslationPageState extends State<TranslationPage> {
 
     try {
       await _llamaController.loadModel(
-        modelPath: safePath, // 传递绝对安全的私有沙盒路径
+        modelPath: safePath, 
         threads: 4,
         contextSize: 1024,
       );
@@ -82,7 +103,7 @@ class _TranslationPageState extends State<TranslationPage> {
         _debugInfo += '\n🎉 引擎加载成功！(GPU加速已就绪)';
       });
     } catch (e) {
-      setState(() => _debugInfo += '\n❌ 底层 C++ 彻底崩溃: $e\n\n【诊断结果】：绝对不是权限问题！100%是模型文件不对劲（文件损坏、格式不支持、或者体积太大爆内存了）');
+      setState(() => _debugInfo += '\n❌ C++ 彻底崩溃: $e\n\n【诊断结果】：模型格式 (2-bit) 可能不被内核支持。');
     }
   }
 
@@ -120,6 +141,7 @@ class _TranslationPageState extends State<TranslationPage> {
 
   @override
   Widget build(BuildContext context) {
+    // UI 代码保持不变
     return Scaffold(
       appBar: AppBar(title: const Text('AI 原生翻译器 (沙盒穿透版)')),
       body: Padding(
