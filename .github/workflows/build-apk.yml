@@ -31,19 +31,13 @@ jobs:
         cp my_pubspec.yaml app_project/pubspec.yaml
         cp my_main.dart app_project/lib/main.dart
 
-    - name: 🚀注入安卓 14 必需权限与服务类型 (全能防闪退版)
+    - name: 🚀注入基本存储权限
       run: |
         cd app_project
-        # 1. 注入所有可能的存储和前台权限
-        perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"\/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
-        
-        # 2. 开启 Android 10+ 兼容模式
+        perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
         perl -pi -e 's/<application/<application android:requestLegacyExternalStorage="true"/' android/app/src/main/AndroidManifest.xml
-        
-        # 3. 核心修复：精准地把 Service 代码插到 </application> 结束标签的内部！
-        perl -pi -e 's/<\/application>/    <service android:name="com.write4me.llama_flutter_android.InferenceService" android:foregroundServiceType="specialUse" android:exported="false" \/>\n<\/application>/' android/app/src/main/AndroidManifest.xml
 
-    - name: 修复 Android NDK 与 API 26 最低版本配置
+    - name: 修复 Android NDK 最低版本配置
       run: |
         cd app_project
         if [ -f "android/app/build.gradle.kts" ]; then
