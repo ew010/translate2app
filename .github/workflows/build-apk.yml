@@ -37,12 +37,11 @@ jobs:
         # 1. 注入所有可能的存储和前台权限
         perl -pi -e 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"\/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"\/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
         
-        # 2. 核心：为底层推理服务注入 Android 14 必需的 foregroundServiceType
-        # 我们直接修改 Service 声明，赋予它 specialUse 类型
+        # 2. 开启 Android 10+ 兼容模式
         perl -pi -e 's/<application/<application android:requestLegacyExternalStorage="true"/' android/app/src/main/AndroidManifest.xml
         
-        # 使用 sed 强行插入服务类型声明 (针对 llama_flutter_android 的 Service 名)
-        sed -i "/<\/queries>/a <service android:name=\"com.write4me.llama_flutter_android.InferenceService\" android:foregroundServiceType=\"specialUse\" android:exported=\"false\" \/>" android/app/src/main/AndroidManifest.xml
+        # 3. 核心修复：精准地把 Service 代码插到 </application> 结束标签的内部！
+        perl -pi -e 's/<\/application>/    <service android:name="com.write4me.llama_flutter_android.InferenceService" android:foregroundServiceType="specialUse" android:exported="false" \/>\n<\/application>/' android/app/src/main/AndroidManifest.xml
 
     - name: 修复 Android NDK 与 API 26 最低版本配置
       run: |
